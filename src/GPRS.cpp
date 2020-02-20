@@ -21,6 +21,8 @@
 
 enum {
   GPRS_STATE_IDLE,
+  GPRS_STATE_PDP_CONTEXT,
+  GPRS_STATE_WAIT_PDP_CONTEXT,
   GPRS_STATE_ATTACH,
   GPRS_STATE_WAIT_ATTACH_RESPONSE,
   GPRS_STATE_SET_APN,
@@ -65,7 +67,7 @@ GSM3_NetworkStatus_t GPRS::attachGPRS(const char* apn, const char* user_name, co
   _username = user_name;
   _password = password;
 
-  _state = GPRS_STATE_ATTACH;
+  _state = GPRS_STATE_PDP_CONTEXT;
   _status = CONNECTING;
 
   if (synchronous) {
@@ -114,8 +116,26 @@ int GPRS::ready()
     default: {
       break;
     }
+    case GPRS_STATE_PDP_CONTEXT: {
+      MODEM.sendf("AT+CGDCONT=1,\"IP\",\"%s\"", _apn);
+      _state = GPRS_STATE_WAIT_PDP_CONTEXT;
+      ready = 0;
+      break;
+    }
 
+    case GPRS_STATE_WAIT_PDP_CONTEXT: {
+      if (ready > 1) {
+        _state = ERROR;
+        ready = 2;
+      } else {
+        _state = GPRS_STATE_ATTACH;
+        ready = 0;
+      }
+      break;
+    }
     case GPRS_STATE_ATTACH: {
+      MODEM.sendf("AT+CGDCONT=1,\"IP\",\"%s\"", _apn);
+
       MODEM.send("AT+CGATT=1");
       _state = GPRS_STATE_WAIT_ATTACH_RESPONSE;
       ready = 0;
